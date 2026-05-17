@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun add *)",
+      "Bash(bun --version)",
+      "Bash(bunx prisma *)",
+      "Bash(bun remove *)",
+      "Bash(bun run *)",
+      "Bash(git add *)",
+      "Bash(bash .husky/pre-commit)",
+      "Bash(echo \"EXIT_CODE: $?\")",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(echo 'BROKEN')",
+      "Bash(git checkout *)",
+      "Bash(prisma --version)",
+      "Bash(node -e \"const p = require\\('./node_modules/prisma/config'\\); console.log\\(Object.keys\\(p\\)\\)\")",
+      "Bash(xargs grep *)"
+    ]
+  }
+}
