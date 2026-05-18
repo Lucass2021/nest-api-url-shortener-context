@@ -30,19 +30,6 @@ export class LinksService {
     return { shortUrl: `${baseUrl}/${link.code}` };
   }
 
-  private async generateUniqueCode(): Promise<string> {
-    let code: string;
-
-    do {
-      code = Array.from(
-        { length: CODE_LENGTH },
-        () => CHARS[Math.floor(Math.random() * CHARS.length)],
-      ).join("");
-    } while (await this.prisma.link.findUnique({ where: { code } }));
-
-    return code;
-  }
-
   async findByCode(code: string) {
     const cached = await this.redis.get(code);
 
@@ -56,5 +43,40 @@ export class LinksService {
     await this.redis.set(code, link.originalUrl, "EX", CACHE_DURATION);
 
     return link;
+  }
+
+  async incrementClicks(code: string) {
+    await this.prisma.link.update({
+      where: { code },
+      data: {
+        clicks: { increment: 1 },
+        lastVisitAt: new Date(),
+      },
+    });
+  }
+
+  async stats(code: string) {
+    const link = await this.prisma.link.findUnique({ where: { code } });
+
+    if (!link) throw new NotFoundException("Link not found");
+
+    return {
+      clicks: link.clicks,
+      createdAt: link.createdAt,
+      lastVisitAt: link.lastVisitAt,
+    };
+  }
+
+  private async generateUniqueCode(): Promise<string> {
+    let code: string;
+
+    do {
+      code = Array.from(
+        { length: CODE_LENGTH },
+        () => CHARS[Math.floor(Math.random() * CHARS.length)],
+      ).join("");
+    } while (await this.prisma.link.findUnique({ where: { code } }));
+
+    return code;
   }
 }

@@ -16,5 +16,11 @@ export class LinksController {
   async redirect(@Param("code") code: string, @Res() res: Response) {
     const link = await this.linksService.findByCode(code);
     res.redirect(302, link.originalUrl);
+    void this.linksService.incrementClicks(code);
+  }
+
+  @Get(":code/stats")
+  stats(@Param("code") code: string) {
+    return this.linksService.stats(code);
   }
 }
