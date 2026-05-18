@@ -1,12 +1,18 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { REDIS_CLIENT } from "src/redis/redis.module";
+import Redis from "ioredis";
 
 const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const CODE_LENGTH = 6;
+const CACHE_DURATION = 60 * 60; // 1 hour
 
 @Injectable()
 export class LinksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+  ) {}
 
   async shortenUrl(url: string) {
     const code = await this.generateUniqueCode();
@@ -15,7 +21,11 @@ export class LinksService {
       data: { code, originalUrl: url },
     });
 
-    const baseUrl = process.env.BASE_URL ?? "http://localhost:3000";
+    const baseUrl = process.env.BASE_URL;
+
+    if (!baseUrl) {
+      throw new Error("BASE_URL environment variable is not defined");
+    }
 
     return { shortUrl: `${baseUrl}/${link.code}` };
   }
@@ -31,5 +41,20 @@ export class LinksService {
     } while (await this.prisma.link.findUnique({ where: { code } }));
 
     return code;
+  }
+
+  async findByCode(code: string) {
+    const cached = await this.redis.get(code);
+
+    if (cached) {
+      return { originalUrl: cached };
+    }
+
+    const link = await this.prisma.link.findUnique({ where: { code } });
+
+    if (!link) throw new NotFoundException("Link not found");
+    await this.redis.set(code, link.originalUrl, "EX", CACHE_DURATION);
+
+    return link;
   }
 }

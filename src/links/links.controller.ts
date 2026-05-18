@@ -1,6 +1,7 @@
-import { Body, Controller, Post } from "@nestjs/common";
-import { CreateLinkDto } from "./dto/create-link.dto";
+import { Body, Controller, Get, Param, Post, Res } from "@nestjs/common";
 import { LinksService } from "./links.service";
+import type { Response } from "express";
+import { CreateLinkDto } from "./dto/create-link.dto";
 
 @Controller("links")
 export class LinksController {
@@ -9,5 +10,11 @@ export class LinksController {
   @Post("shorten")
   shortenUrl(@Body() dto: CreateLinkDto) {
     return this.linksService.shortenUrl(dto.url);
+  }
+
+  @Get(":code")
+  async redirect(@Param("code") code: string, @Res() res: Response) {
+    const link = await this.linksService.findByCode(code);
+    res.redirect(302, link.originalUrl);
   }
 }
