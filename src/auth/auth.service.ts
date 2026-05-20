@@ -100,7 +100,7 @@ export class AuthService {
 
       const isRefreshTokenValid = await bcrypt.compare(
         token.refreshToken,
-        userInDatabase.refreshTokenHash as string,
+        userInDatabase.refreshTokenHash,
       );
 
       if (!isRefreshTokenValid) {

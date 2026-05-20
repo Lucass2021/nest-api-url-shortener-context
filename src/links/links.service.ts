@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { REDIS_CLIENT } from "src/redis/redis.module";
 import Redis from "ioredis";
@@ -14,11 +19,11 @@ export class LinksService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
-  async shortenUrl(url: string) {
+  async shortenUrl(url: string, userId?: string) {
     const code = await this.generateUniqueCode();
 
     const link = await this.prisma.link.create({
-      data: { code, originalUrl: url },
+      data: { code, originalUrl: url, userId },
     });
 
     const baseUrl = process.env.BASE_URL;
@@ -65,6 +70,31 @@ export class LinksService {
       createdAt: link.createdAt,
       lastVisitAt: link.lastVisitAt,
     };
+  }
+
+  async findByUser(userId: string) {
+    return this.prisma.link.findMany({
+      where: { userId },
+      select: {
+        code: true,
+        originalUrl: true,
+        clicks: true,
+        createdAt: true,
+        expiresAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  async deleteByCode(code: string, userId: string) {
+    const link = await this.prisma.link.findUnique({ where: { code } });
+
+    if (!link) throw new NotFoundException("Link not found");
+    if (link.userId !== userId)
+      throw new ForbiddenException("You do not own this link");
+
+    await this.prisma.link.delete({ where: { code } });
+    await this.redis.del(code);
   }
 
   private async generateUniqueCode(): Promise<string> {
