@@ -1,5 +1,6 @@
 import {
   ForbiddenException,
+  GoneException,
   Inject,
   Injectable,
   NotFoundException,
@@ -19,11 +20,16 @@ export class LinksService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
-  async shortenUrl(url: string, userId?: string) {
+  async shortenUrl(url: string, userId?: string, expiresAt?: string) {
     const code = await this.generateUniqueCode();
 
     const link = await this.prisma.link.create({
-      data: { code, originalUrl: url, userId },
+      data: {
+        code,
+        originalUrl: url,
+        userId,
+        expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+      },
     });
 
     const baseUrl = process.env.BASE_URL;
@@ -45,6 +51,10 @@ export class LinksService {
     const link = await this.prisma.link.findUnique({ where: { code } });
 
     if (!link) throw new NotFoundException("Link not found");
+    if (link.expiresAt && link.expiresAt < new Date()) {
+      throw new GoneException("Link has expired");
+    }
+
     await this.redis.set(code, link.originalUrl, "EX", CACHE_DURATION);
 
     return link;

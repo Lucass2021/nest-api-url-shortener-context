@@ -5,11 +5,9 @@ import {
   Get,
   Param,
   Post,
-  Res,
   UseGuards,
 } from "@nestjs/common";
 import { LinksService } from "./links.service";
-import type { Response } from "express";
 import { CreateLinkDto } from "./dto/create-link.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { OptionalJwtAuthGuard } from "../auth/optional-jwt-auth.guard";
@@ -35,19 +33,7 @@ export class LinksController {
     @Body() dto: CreateLinkDto,
     @CurrentUser() user: AuthUser | undefined,
   ) {
-    return this.linksService.shortenUrl(dto.url, user?.id);
-  }
-
-  @Get(":code")
-  async redirect(@Param("code") code: string, @Res() res: Response) {
-    const link = await this.linksService.findByCode(code);
-    res.redirect(302, link.originalUrl);
-    void this.linksService.incrementClicks(code);
-  }
-
-  @Get(":code/stats")
-  stats(@Param("code") code: string) {
-    return this.linksService.stats(code);
+    return this.linksService.shortenUrl(dto.url, user?.id, dto.expiresAt);
   }
 
   @Delete(":code")
