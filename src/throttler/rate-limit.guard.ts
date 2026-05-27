@@ -6,7 +6,7 @@ import {
   Inject,
   Injectable,
 } from "@nestjs/common";
-import type { Request, Response } from "express";
+import type { FastifyRequest, FastifyReply } from "fastify";
 import Redis from "ioredis";
 import { REDIS_CLIENT } from "src/redis/redis.module";
 import type { AuthUser } from "src/auth/decorators/current-user.decorator";
@@ -20,23 +20,23 @@ export class RateLimitGuard implements CanActivate {
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const req = context
+    const request = context
       .switchToHttp()
-      .getRequest<Request & { user?: AuthUser }>();
-    const res = context.switchToHttp().getResponse<Response>();
+      .getRequest<FastifyRequest & { user?: AuthUser }>();
+    const response = context.switchToHttp().getResponse<FastifyReply>();
 
-    const user = req.user;
-    const key = user ? `rl:user:${user.id}` : `rl:ip:${req.ip}`;
+    const user = request.user;
+    const rateLimitKey = user ? `rl:user:${user.id}` : `rl:ip:${request.ip}`;
     const limit = user ? AUTH_LIMIT : ANON_LIMIT;
 
-    const count = await this.redis.incr(key);
-    if (count === 1) {
-      await this.redis.expire(key, HOUR_IN_SECONDS);
+    const requestCount = await this.redis.incr(rateLimitKey);
+    if (requestCount === 1) {
+      await this.redis.expire(rateLimitKey, HOUR_IN_SECONDS);
     }
 
-    if (count > limit) {
-      const remainingTtl = await this.redis.ttl(key);
-      res.setHeader("Retry-After", remainingTtl);
+    if (requestCount > limit) {
+      const retryAfterSeconds = await this.redis.ttl(rateLimitKey);
+      response.header("Retry-After", retryAfterSeconds);
       throw new HttpException(
         "Too Many Requests",
         HttpStatus.TOO_MANY_REQUESTS,

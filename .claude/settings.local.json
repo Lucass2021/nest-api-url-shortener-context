@@ -14,7 +14,19 @@
       "Bash(git checkout *)",
       "Bash(prisma --version)",
       "Bash(node -e \"const p = require\\('./node_modules/prisma/config'\\); console.log\\(Object.keys\\(p\\)\\)\")",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(npm uninstall *)",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const p = require\\('./node_modules/prisma/package.json'\\); console.log\\(p.version\\)\")",
+      "Bash(npx prisma *)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(node_modules/.bin/tsc --noEmit -p tsconfig.json)",
+      "Bash(node_modules/.bin/jest --config ./test/jest-e2e.json --testPathPattern=\"app.e2e\")",
+      "Bash(node_modules/.bin/jest --config ./test/jest-e2e.json)",
+      "Bash(Test-Path *)",
+      "Bash(node_modules/.bin/jest --config ./test/jest-e2e.json --forceExit)",
+      "Bash(Get-ChildItem -Path \"D:\\\\Projetos pessoais\\\\api-url-shortener-context\" -Recurse -Include \"*.ts\" -Exclude \"*node_modules*\")",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

@@ -9,9 +9,10 @@ import { PrismaService } from "../prisma/prisma.service";
 import { REDIS_CLIENT } from "src/redis/redis.module";
 import Redis from "ioredis";
 
-const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const SHORT_CODE_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const CODE_LENGTH = 6;
-const CACHE_DURATION = 60 * 60; // 1 hour
+const CACHE_TTL_SECONDS = 60 * 60;
 
 @Injectable()
 export class LinksService {
@@ -42,10 +43,10 @@ export class LinksService {
   }
 
   async findByCode(code: string) {
-    const cached = await this.redis.get(code);
+    const cachedOriginalUrl = await this.redis.get(code);
 
-    if (cached) {
-      return { originalUrl: cached };
+    if (cachedOriginalUrl) {
+      return { originalUrl: cachedOriginalUrl };
     }
 
     const link = await this.prisma.link.findUnique({ where: { code } });
@@ -55,7 +56,7 @@ export class LinksService {
       throw new GoneException("Link has expired");
     }
 
-    await this.redis.set(code, link.originalUrl, "EX", CACHE_DURATION);
+    await this.redis.set(code, link.originalUrl, "EX", CACHE_TTL_SECONDS);
 
     return link;
   }
@@ -113,7 +114,10 @@ export class LinksService {
     do {
       code = Array.from(
         { length: CODE_LENGTH },
-        () => CHARS[Math.floor(Math.random() * CHARS.length)],
+        () =>
+          SHORT_CODE_ALPHABET[
+            Math.floor(Math.random() * SHORT_CODE_ALPHABET.length)
+          ],
       ).join("");
     } while (await this.prisma.link.findUnique({ where: { code } }));
 

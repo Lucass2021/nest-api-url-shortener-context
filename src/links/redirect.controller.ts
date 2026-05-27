@@ -1,16 +1,18 @@
 import { Controller, Get, Param, Res } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import { LinksService } from "./links.service";
-import type { Response } from "express";
+import type { FastifyReply } from "fastify";
 
+@ApiTags("redirect")
 @Controller("")
 export class RedirectController {
   constructor(private readonly linksService: LinksService) {}
 
   @Get(":code")
-  async redirect(@Param("code") code: string, @Res() res: Response) {
+  async redirect(@Param("code") code: string, @Res() res: FastifyReply) {
     const link = await this.linksService.findByCode(code);
-    res.redirect(302, link.originalUrl);
     void this.linksService.incrementClicks(code);
+    return res.redirect(link.originalUrl, 302);
   }
 
   @Get(":code/stats")

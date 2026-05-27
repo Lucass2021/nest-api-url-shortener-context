@@ -24,16 +24,16 @@ export class AuthService {
   ) {}
 
   async register(user: AuthCredentialsDto) {
-    const userInDatabase = await this.prisma.user.findUnique({
+    const existingUser = await this.prisma.user.findUnique({
       where: { email: user.email },
     });
 
-    if (userInDatabase) {
+    if (existingUser) {
       throw new BadRequestException("User already exists");
     }
 
     const passwordHash = await bcrypt.hash(user.password, 10);
-    const newUser = await this.prisma.user.create({
+    const createdUser = await this.prisma.user.create({
       data: {
         email: user.email,
         passwordHash: passwordHash,
@@ -41,25 +41,25 @@ export class AuthService {
     });
 
     return {
-      id: newUser.id,
-      email: newUser.email,
-      createdAt: newUser.createdAt,
-      updatedAt: newUser.updatedAt,
+      id: createdUser.id,
+      email: createdUser.email,
+      createdAt: createdUser.createdAt,
+      updatedAt: createdUser.updatedAt,
     };
   }
 
   async login(user: AuthCredentialsDto) {
-    const userInDatabase = await this.prisma.user.findUnique({
+    const existingUser = await this.prisma.user.findUnique({
       where: { email: user.email },
     });
 
-    if (!userInDatabase) {
+    if (!existingUser) {
       throw new UnauthorizedException("Invalid credentials");
     }
 
     const isPasswordValid = await bcrypt.compare(
       user.password,
-      userInDatabase.passwordHash,
+      existingUser.passwordHash,
     );
 
     if (!isPasswordValid) {
@@ -67,12 +67,12 @@ export class AuthService {
     }
 
     const tokens = await this.generateTokens(
-      userInDatabase.id,
-      userInDatabase.email,
+      existingUser.id,
+      existingUser.email,
     );
 
     await this.prisma.user.update({
-      where: { id: userInDatabase.id },
+      where: { id: existingUser.id },
       data: {
         refreshTokenHash: await bcrypt.hash(tokens.refreshToken, 10),
       },
@@ -83,24 +83,24 @@ export class AuthService {
 
   async refresh(token: RefreshDto) {
     try {
-      const userRefreshTokenInDatabase = await this.jwt.verifyAsync<JwtPayload>(
+      const refreshTokenPayload = await this.jwt.verifyAsync<JwtPayload>(
         token.refreshToken,
         {
           secret: this.config.getOrThrow<string>("JWT_REFRESH_SECRET"),
         },
       );
 
-      const userInDatabase = await this.prisma.user.findUnique({
-        where: { id: userRefreshTokenInDatabase.sub },
+      const existingUser = await this.prisma.user.findUnique({
+        where: { id: refreshTokenPayload.sub },
       });
 
-      if (!userInDatabase?.refreshTokenHash) {
+      if (!existingUser?.refreshTokenHash) {
         throw new UnauthorizedException("Invalid refresh token");
       }
 
       const isRefreshTokenValid = await bcrypt.compare(
         token.refreshToken,
-        userInDatabase.refreshTokenHash,
+        existingUser.refreshTokenHash,
       );
 
       if (!isRefreshTokenValid) {
@@ -108,21 +108,39 @@ export class AuthService {
       }
 
       const tokens = await this.generateTokens(
-        userInDatabase.id,
-        userInDatabase.email,
+        existingUser.id,
+        existingUser.email,
       );
 
       await this.prisma.user.update({
-        where: { id: userInDatabase.id },
+        where: { id: existingUser.id },
         data: {
           refreshTokenHash: await bcrypt.hash(tokens.refreshToken, 10),
         },
       });
 
       return tokens;
-    } catch {
+    } catch (error) {
+      if ((error as { name?: string }).name === "TokenExpiredError") {
+        const expiredTokenPayload = this.jwt.decode<JwtPayload>(
+          token.refreshToken,
+        );
+        if (expiredTokenPayload?.sub) {
+          await this.prisma.user.updateMany({
+            where: { id: expiredTokenPayload.sub },
+            data: { refreshTokenHash: null },
+          });
+        }
+      }
       throw new UnauthorizedException("Invalid refresh token");
     }
+  }
+
+  async logout(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { refreshTokenHash: null },
+    });
   }
 
   private async generateTokens(userId: string, email: string) {

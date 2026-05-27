@@ -1,98 +1,152 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# URL Shortener API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A production-focused URL shortener API built as a study project to consolidate backend patterns.
+Covers Redis caching, JWT authentication, rate limiting, and e2e testing with NestJS.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## Stack
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Framework:** NestJS v11 + TypeScript
+- **HTTP:** Fastify
+- **Database:** PostgreSQL 16 + Prisma 6 ORM
+- **Cache:** Redis 7 (ioredis)
+- **Auth:** JWT + refresh token (passport-jwt)
+- **Containers:** Docker + Docker Compose
+- **Tests:** Jest + Fastify inject (e2e)
+- **Docs:** Swagger at `/docs`
 
-## Project setup
+---
 
-```bash
-$ npm install
-```
+## Getting Started
 
-## Compile and run the project
+### Prerequisites
+
+- Node.js 22+
+- Docker + Docker Compose
+
+### Setup
 
 ```bash
-# development
-$ npm run start
+# 1. Install dependencies
+bun install
 
-# watch mode
-$ npm run start:dev
+# 2. Copy environment variables
+cp .env.example .env
 
-# production mode
-$ npm run start:prod
+# 3. Start Postgres and Redis
+bun run docker:up
+
+# 4. Run migrations and generate Prisma client
+bun run db:migrate
+bun run db:generate
+
+# 5. Start the server
+bun run dev
 ```
 
-## Run tests
+The API will be available at `http://localhost:3000`.
+Swagger docs at `http://localhost:3000/docs`.
+
+---
+
+## Environment Variables
+
+| Variable | Description | Default |
+|---|---|---|
+| `PORT` | HTTP server port | `3000` |
+| `NODE_ENV` | Environment | `development` |
+| `DATABASE_URL` | PostgreSQL connection string | see `.env.example` |
+| `DB_USER` | Postgres user | `postgres` |
+| `DB_PASSWORD` | Postgres password | `postgres` |
+| `DB_NAME` | Database name | `url_shortener` |
+| `REDIS_HOST` | Redis host | `localhost` |
+| `REDIS_PORT` | Redis port | `6379` |
+| `REDIS_PASSWORD` | Redis password | `redis` |
+| `BASE_URL` | Base URL used to build short links | `http://localhost:3000` |
+| `JWT_SECRET` | Access token signing secret | — |
+| `JWT_EXPIRES_IN` | Access token TTL | `15m` |
+| `JWT_REFRESH_SECRET` | Refresh token signing secret | — |
+| `JWT_REFRESH_EXPIRES_IN` | Refresh token TTL | `7d` |
+
+---
+
+## Scripts
 
 ```bash
-# unit tests
-$ npm run test
+bun run dev              # Start with hot reload
+bun run build            # Compile to dist/
+bun run start:prod       # Run compiled build
 
-# e2e tests
-$ npm run test:e2e
+bun run db:migrate       # Run Prisma migrations (dev)
+bun run db:migrate:prod  # Run Prisma migrations (prod)
+bun run db:generate      # Generate Prisma client
+bun run db:studio        # Open Prisma Studio
 
-# test coverage
-$ npm run test:cov
+bun run docker:up        # Start Postgres + Redis containers
+bun run docker:down      # Stop containers
+
+bun run test:e2e         # Run e2e tests (requires Docker running)
+bun run lint             # ESLint + Prisma schema validation
 ```
 
-## Deployment
+---
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## API Endpoints
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### Auth
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `POST` | `/auth/register` | — | Create account |
+| `POST` | `/auth/login` | — | Login, returns access + refresh tokens |
+| `POST` | `/auth/refresh` | — | Issue new access token via refresh token |
+
+### Links
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `POST` | `/links/shorten` | Optional | Shorten a URL |
+| `GET` | `/links/me/links` | Required | List authenticated user's links |
+| `DELETE` | `/links/:code` | Required | Delete own link |
+
+### Redirect
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/:code` | — | Redirect to original URL (302) |
+| `GET` | `/:code/stats` | — | Link stats: total clicks, created at, last visit |
+
+### Request examples
+
+**Shorten a URL**
+```http
+POST /links/shorten
+Content-Type: application/json
+
+{
+  "url": "https://www.example.com",
+  "expiresAt": "2026-12-31T23:59:59.000Z"
+}
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+**Register / Login**
+```http
+POST /auth/register
+Content-Type: application/json
 
-## Resources
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+---
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## Architecture Notes
 
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- **Redis cache:** `GET /:code` checks Redis before hitting Postgres. Cache is invalidated on `DELETE`.
+- **Click counting:** incremented asynchronously (fire-and-forget) — never blocks the redirect response.
+- **Rate limiting:** tracked per IP in Redis — 10 req/hour for anonymous, 100 req/hour for authenticated. Returns `Retry-After` header on `429`.
+- **Link expiration:** links with `expiresAt` in the past return `410 Gone`.
+- **Prisma client:** must be regenerated after `npm install` — run `npm run db:generate`.
