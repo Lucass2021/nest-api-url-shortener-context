@@ -3,7 +3,7 @@ import { ApiTags } from "@nestjs/swagger";
 import { LinksService } from "./links.service";
 import type { FastifyReply } from "fastify";
 
-@ApiTags("redirect")
+@ApiTags("Redirect")
 @Controller("")
 export class RedirectController {
   constructor(private readonly linksService: LinksService) {}

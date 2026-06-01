@@ -18,7 +18,7 @@ import {
 } from "../auth/decorators/current-user.decorator";
 import { RateLimitGuard } from "src/throttler/rate-limit.guard";
 
-@ApiTags("links")
+@ApiTags("Links")
 @Controller("links")
 export class LinksController {
   constructor(private readonly linksService: LinksService) {}

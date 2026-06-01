@@ -17,7 +17,7 @@ import {
 import { LoginCredentialsDto } from "./dto/login-credentials.dto";
 import { AuthCredentialsDto } from "./dto/auth-credentials.dto";
 
-@ApiTags("auth")
+@ApiTags("Auth")
 @Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
