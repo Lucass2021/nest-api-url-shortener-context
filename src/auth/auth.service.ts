@@ -3,12 +3,13 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
-import { AuthCredentialsDto } from "./dto/auth-credentials.dto";
 import { RefreshDto } from "./dto/refresh.dto";
 import { PrismaService } from "src/prisma/prisma.service";
 import * as bcrypt from "bcrypt";
 import { JwtService, type JwtSignOptions } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
+import { LoginCredentialsDto } from "./dto/login-credentials.dto";
+import { AuthCredentialsDto } from "./dto/auth-credentials.dto";
 
 type JwtPayload = {
   sub: string;
@@ -32,23 +33,35 @@ export class AuthService {
       throw new BadRequestException("User already exists");
     }
 
-    const passwordHash = await bcrypt.hash(user.password, 10);
+    const passwordHash: string = await bcrypt.hash(user.password, 10);
     const createdUser = await this.prisma.user.create({
       data: {
+        name: user.name,
         email: user.email,
         passwordHash: passwordHash,
       },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
-    return {
-      id: createdUser.id,
-      email: createdUser.email,
-      createdAt: createdUser.createdAt,
-      updatedAt: createdUser.updatedAt,
-    };
+    const tokens = await this.generateTokens(createdUser.id, createdUser.email);
+
+    await this.prisma.user.update({
+      where: { id: createdUser.id },
+      data: {
+        refreshTokenHash: await bcrypt.hash(tokens.refreshToken, 10),
+      },
+    });
+
+    return { tokens, user: createdUser };
   }
 
-  async login(user: AuthCredentialsDto) {
+  async login(user: LoginCredentialsDto) {
     const existingUser = await this.prisma.user.findUnique({
       where: { email: user.email },
     });
@@ -57,7 +70,7 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials");
     }
 
-    const isPasswordValid = await bcrypt.compare(
+    const isPasswordValid: boolean = await bcrypt.compare(
       user.password,
       existingUser.passwordHash,
     );
@@ -98,7 +111,7 @@ export class AuthService {
         throw new UnauthorizedException("Invalid refresh token");
       }
 
-      const isRefreshTokenValid = await bcrypt.compare(
+      const isRefreshTokenValid: boolean = await bcrypt.compare(
         token.refreshToken,
         existingUser.refreshTokenHash,
       );

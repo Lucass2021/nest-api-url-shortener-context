@@ -8,13 +8,14 @@ import {
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { AuthService } from "./auth.service";
-import { AuthCredentialsDto } from "./dto/auth-credentials.dto";
 import { RefreshDto } from "./dto/refresh.dto";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import {
   CurrentUser,
   type AuthUser,
 } from "./decorators/current-user.decorator";
+import { LoginCredentialsDto } from "./dto/login-credentials.dto";
+import { AuthCredentialsDto } from "./dto/auth-credentials.dto";
 
 @ApiTags("auth")
 @Controller("auth")
@@ -27,7 +28,7 @@ export class AuthController {
   }
 
   @Post("login")
-  login(@Body() dto: AuthCredentialsDto) {
+  login(@Body() dto: LoginCredentialsDto) {
     return this.authService.login(dto);
   }
 

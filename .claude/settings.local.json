@@ -26,7 +26,11 @@
       "Bash(Test-Path *)",
       "Bash(node_modules/.bin/jest --config ./test/jest-e2e.json --forceExit)",
       "Bash(Get-ChildItem -Path \"D:\\\\Projetos pessoais\\\\api-url-shortener-context\" -Recurse -Include \"*.ts\" -Exclude \"*node_modules*\")",
-      "Bash(Select-Object -ExpandProperty FullName)"
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(xargs cat -n)",
+      "Bash(npx eslint *)",
+      "Bash(bun install *)",
+      "Bash(NODE_OPTIONS=--experimental-require-module bun run lint)"
     ]
   }
 }

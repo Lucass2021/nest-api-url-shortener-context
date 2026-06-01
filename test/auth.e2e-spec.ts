@@ -21,24 +21,36 @@ describe("Auth (e2e)", () => {
     const registerResponse = await testApp.server.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email: "user@test.com", password: "password123" },
+      payload: {
+        name: "Test User",
+        email: "user@test.com",
+        password: "password123",
+      },
     });
     expect(registerResponse.statusCode).toBe(201);
-    expect(registerResponse.json<{ email: string }>().email).toBe(
-      "user@test.com",
-    );
+    expect(
+      registerResponse.json<{ user: { email: string } }>().user.email,
+    ).toBe("user@test.com");
   });
 
   it("POST /auth/register - duplicate email returns 400", async () => {
     await testApp.server.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email: "user@test.com", password: "password123" },
+      payload: {
+        name: "Test User",
+        email: "user@test.com",
+        password: "password123",
+      },
     });
     const duplicateRegisterResponse = await testApp.server.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email: "user@test.com", password: "password123" },
+      payload: {
+        name: "Test User",
+        email: "user@test.com",
+        password: "password123",
+      },
     });
     expect(duplicateRegisterResponse.statusCode).toBe(400);
   });
@@ -47,7 +59,11 @@ describe("Auth (e2e)", () => {
     await testApp.server.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email: "user@test.com", password: "password123" },
+      payload: {
+        name: "Test User",
+        email: "user@test.com",
+        password: "password123",
+      },
     });
     const loginResponse = await testApp.server.inject({
       method: "POST",
@@ -67,7 +83,11 @@ describe("Auth (e2e)", () => {
     await testApp.server.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email: "user@test.com", password: "password123" },
+      payload: {
+        name: "Test User",
+        email: "user@test.com",
+        password: "password123",
+      },
     });
     const loginResponse = await testApp.server.inject({
       method: "POST",
@@ -96,7 +116,11 @@ describe("Auth (e2e)", () => {
     await testApp.server.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email: "user@test.com", password: "password123" },
+      payload: {
+        name: "Test User",
+        email: "user@test.com",
+        password: "password123",
+      },
     });
     const loginResponse = await testApp.server.inject({
       method: "POST",

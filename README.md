@@ -52,22 +52,22 @@ Swagger docs at `http://localhost:3000/docs`.
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|---|---|---|
-| `PORT` | HTTP server port | `3000` |
-| `NODE_ENV` | Environment | `development` |
-| `DATABASE_URL` | PostgreSQL connection string | see `.env.example` |
-| `DB_USER` | Postgres user | `postgres` |
-| `DB_PASSWORD` | Postgres password | `postgres` |
-| `DB_NAME` | Database name | `url_shortener` |
-| `REDIS_HOST` | Redis host | `localhost` |
-| `REDIS_PORT` | Redis port | `6379` |
-| `REDIS_PASSWORD` | Redis password | `redis` |
-| `BASE_URL` | Base URL used to build short links | `http://localhost:3000` |
-| `JWT_SECRET` | Access token signing secret | — |
-| `JWT_EXPIRES_IN` | Access token TTL | `15m` |
-| `JWT_REFRESH_SECRET` | Refresh token signing secret | — |
-| `JWT_REFRESH_EXPIRES_IN` | Refresh token TTL | `7d` |
+| Variable                 | Description                        | Default                 |
+| ------------------------ | ---------------------------------- | ----------------------- |
+| `PORT`                   | HTTP server port                   | `3000`                  |
+| `NODE_ENV`               | Environment                        | `development`           |
+| `DATABASE_URL`           | PostgreSQL connection string       | see `.env.example`      |
+| `DB_USER`                | Postgres user                      | `postgres`              |
+| `DB_PASSWORD`            | Postgres password                  | `postgres`              |
+| `DB_NAME`                | Database name                      | `url_shortener`         |
+| `REDIS_HOST`             | Redis host                         | `localhost`             |
+| `REDIS_PORT`             | Redis port                         | `6379`                  |
+| `REDIS_PASSWORD`         | Redis password                     | `redis`                 |
+| `BASE_URL`               | Base URL used to build short links | `http://localhost:3000` |
+| `JWT_SECRET`             | Access token signing secret        | —                       |
+| `JWT_EXPIRES_IN`         | Access token TTL                   | `15m`                   |
+| `JWT_REFRESH_SECRET`     | Refresh token signing secret       | —                       |
+| `JWT_REFRESH_EXPIRES_IN` | Refresh token TTL                  | `7d`                    |
 
 ---
 
@@ -96,30 +96,32 @@ bun run lint             # ESLint + Prisma schema validation
 
 ### Auth
 
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `POST` | `/auth/register` | — | Create account |
-| `POST` | `/auth/login` | — | Login, returns access + refresh tokens |
-| `POST` | `/auth/refresh` | — | Issue new access token via refresh token |
+| Method | Endpoint         | Auth     | Description                                          |
+| ------ | ---------------- | -------- | ---------------------------------------------------- |
+| `POST` | `/auth/register` | —        | Create account, returns tokens + user (auto-login)   |
+| `POST` | `/auth/login`    | —        | Login, returns access + refresh tokens               |
+| `POST` | `/auth/refresh`  | —        | Issue new access token via refresh token             |
+| `POST` | `/auth/logout`   | Required | Invalidate refresh token                             |
 
 ### Links
 
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `POST` | `/links/shorten` | Optional | Shorten a URL |
-| `GET` | `/links/me/links` | Required | List authenticated user's links |
-| `DELETE` | `/links/:code` | Required | Delete own link |
+| Method   | Endpoint          | Auth     | Description                     |
+| -------- | ----------------- | -------- | ------------------------------- |
+| `POST`   | `/links/shorten`  | Optional | Shorten a URL                   |
+| `GET`    | `/links/me/links` | Required | List authenticated user's links |
+| `DELETE` | `/links/:code`    | Required | Delete own link                 |
 
 ### Redirect
 
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `GET` | `/:code` | — | Redirect to original URL (302) |
-| `GET` | `/:code/stats` | — | Link stats: total clicks, created at, last visit |
+| Method | Endpoint       | Auth | Description                                      |
+| ------ | -------------- | ---- | ------------------------------------------------ |
+| `GET`  | `/:code`       | —    | Redirect to original URL (302)                   |
+| `GET`  | `/:code/stats` | —    | Link stats: total clicks, created at, last visit |
 
 ### Request examples
 
 **Shorten a URL**
+
 ```http
 POST /links/shorten
 Content-Type: application/json
@@ -130,14 +132,53 @@ Content-Type: application/json
 }
 ```
 
-**Register / Login**
+**Register**
+
 ```http
 POST /auth/register
 Content-Type: application/json
 
 {
+  "name": "John Doe",
   "email": "user@example.com",
   "password": "password123"
+}
+```
+
+Response `201`:
+```json
+{
+  "tokens": {
+    "accessToken": "<jwt>",
+    "refreshToken": "<jwt>"
+  },
+  "user": {
+    "id": "clx...",
+    "name": "John Doe",
+    "email": "user@example.com",
+    "createdAt": "2026-06-01T00:00:00.000Z",
+    "updatedAt": "2026-06-01T00:00:00.000Z"
+  }
+}
+```
+
+**Login**
+
+```http
+POST /auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+
+Response `200`:
+```json
+{
+  "accessToken": "<jwt>",
+  "refreshToken": "<jwt>"
 }
 ```
 

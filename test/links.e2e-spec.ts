@@ -24,7 +24,7 @@ describe("Links (e2e)", () => {
     await testApp.server.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email, password },
+      payload: { name: "Test User", email, password },
     });
     const loginResponse = await testApp.server.inject({
       method: "POST",

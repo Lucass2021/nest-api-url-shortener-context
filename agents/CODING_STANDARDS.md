@@ -53,6 +53,14 @@ src/<domain>/
 - **No `any`**, no `@ts-ignore` / `@ts-expect-error`.
 - Type all DTO properties and service return values explicitly.
 - Use `import type` for type-only imports.
+- Third-party library calls whose return type resolves as `any` (e.g. `bcrypt.hash`, `bcrypt.compare`) must be annotated explicitly: `const hash: string = await bcrypt.hash(...)`.
+
+---
+
+## Prisma
+
+- Always use `select` when querying the `User` model in service return values — never expose `passwordHash` or `refreshTokenHash` in responses.
+- Separate DTOs per operation when field requirements differ (e.g. `AuthCredentialsDto` for register with `name`, `LoginCredentialsDto` for login without it).
 
 ---
 
