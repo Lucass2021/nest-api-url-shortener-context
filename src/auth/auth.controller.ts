@@ -16,6 +16,9 @@ import {
 } from "./decorators/current-user.decorator";
 import { LoginCredentialsDto } from "./dto/login-credentials.dto";
 import { AuthCredentialsDto } from "./dto/auth-credentials.dto";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import { VerifyResetCodeDto } from "./dto/verify-reset-code.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
 
 @ApiTags("Auth")
 @Controller("auth")
@@ -43,5 +46,20 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   logout(@CurrentUser() user: AuthUser) {
     return this.authService.logout(user.id);
+  }
+
+  @Post("forgot-password")
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Post("verify-reset-code")
+  verifyResetCode(@Body() dto: VerifyResetCodeDto) {
+    return this.authService.verifyResetCode(dto);
+  }
+
+  @Post("reset-password")
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
   }
 }

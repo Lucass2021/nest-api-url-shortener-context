@@ -5,6 +5,7 @@ import { RedisModule } from "./redis/redis.module";
 import { LinksModule } from "./links/links.module";
 import { HealthModule } from "./health/health.module";
 import { AuthModule } from "./auth/auth.module";
+import { MailModule } from "./mail/mail.module";
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AuthModule } from "./auth/auth.module";
     LinksModule,
     HealthModule,
     AuthModule,
+    MailModule,
   ],
   controllers: [],
   providers: [],

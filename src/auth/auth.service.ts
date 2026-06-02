@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -10,6 +11,13 @@ import { JwtService, type JwtSignOptions } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { LoginCredentialsDto } from "./dto/login-credentials.dto";
 import { AuthCredentialsDto } from "./dto/auth-credentials.dto";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import { VerifyResetCodeDto } from "./dto/verify-reset-code.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { Redis } from "ioredis";
+import { REDIS_CLIENT } from "src/redis/redis.module";
+import { randomInt } from "crypto";
+import { MailService } from "src/mail/mail.service";
 
 type JwtPayload = {
   sub: string;
@@ -22,6 +30,8 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly mail: MailService,
   ) {}
 
   async register(user: AuthCredentialsDto) {
@@ -155,6 +165,37 @@ export class AuthService {
       data: { refreshTokenHash: null },
     });
   }
+
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (existingUser) {
+      const resetCode = randomInt(100000, 999999).toString();
+      const resetCodeHash = await bcrypt.hash(resetCode, 10);
+
+      await this.redis.set(
+        `password_reset:${dto.email}`,
+        resetCodeHash,
+        "EX",
+        900, // TTL: 15 min in seconds
+      );
+
+      await this.mail.sendResetCode(dto.email, resetCode);
+    }
+
+    return {
+      message:
+        "If an account with that email exists, a reset code has been sent.",
+    };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async verifyResetCode(user: VerifyResetCodeDto) {}
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async resetPassword(user: ResetPasswordDto) {}
 
   private async generateTokens(userId: string, email: string) {
     const payload = { sub: userId, email };
