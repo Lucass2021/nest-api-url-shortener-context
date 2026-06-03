@@ -16,7 +16,7 @@ import { VerifyResetCodeDto } from "./dto/verify-reset-code.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { Redis } from "ioredis";
 import { REDIS_CLIENT } from "src/redis/redis.module";
-import { randomInt } from "crypto";
+import { randomBytes, randomInt } from "crypto";
 import { MailService } from "src/mail/mail.service";
 
 type JwtPayload = {
@@ -191,11 +191,61 @@ export class AuthService {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async verifyResetCode(user: VerifyResetCodeDto) {}
+  async verifyResetCode(user: VerifyResetCodeDto) {
+    const resetCodeHash = await this.redis.get(`password_reset:${user.email}`);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async resetPassword(user: ResetPasswordDto) {}
+    if (!resetCodeHash) {
+      throw new BadRequestException("Invalid or expired reset code");
+    }
+
+    const isCodeValid = await bcrypt.compare(user.code, resetCodeHash);
+
+    if (!isCodeValid) {
+      throw new BadRequestException("Invalid or expired reset code");
+    }
+
+    const resetToken = randomBytes(32).toString("hex");
+
+    await this.redis.del(`password_reset:${user.email}`);
+
+    await this.redis.set(
+      `password_reset_token:${resetToken}`,
+      user.email,
+      "EX",
+      900, // TTL: 15 min in seconds
+    );
+
+    return { resetToken };
+  }
+
+  async resetPassword(user: ResetPasswordDto) {
+    const passwordResetToken = await this.redis.get(
+      `password_reset_token:${user.resetToken}`,
+    );
+
+    if (!passwordResetToken) {
+      throw new BadRequestException("Invalid or expired reset token");
+    }
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: passwordResetToken },
+    });
+
+    if (!existingUser) {
+      throw new BadRequestException("Invalid reset token");
+    }
+
+    const newPasswordHash = await bcrypt.hash(user.newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: existingUser.id },
+      data: { passwordHash: newPasswordHash, refreshTokenHash: null },
+    });
+
+    await this.redis.del(`password_reset_token:${user.resetToken}`);
+
+    return { message: "Password has been reset successfully" };
+  }
 
   private async generateTokens(userId: string, email: string) {
     const payload = { sub: userId, email };

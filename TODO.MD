@@ -9,3 +9,5 @@
 # Update Code standards
 
 # https://mailtrap.io/home
+
+# Clean var names and english only
