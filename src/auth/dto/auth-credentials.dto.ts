@@ -6,7 +6,7 @@ export class AuthCredentialsDto {
   @IsString({ message: "Name must be a string" })
   name!: string;
 
-  @ApiProperty({ example: "teste@hotmail.com" })
+  @ApiProperty({ example: "test@hotmail.com" })
   @IsEmail({}, { message: "Invalid email address" })
   email!: string;
 

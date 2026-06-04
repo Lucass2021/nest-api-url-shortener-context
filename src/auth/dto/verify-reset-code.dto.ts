@@ -2,7 +2,7 @@ import { ApiProperty } from "@nestjs/swagger";
 import { IsEmail, IsNumberString, Length } from "class-validator";
 
 export class VerifyResetCodeDto {
-  @ApiProperty({ example: "teste@hotmail.com" })
+  @ApiProperty({ example: "test@hotmail.com" })
   @IsEmail({}, { message: "Invalid email address" })
   email!: string;
 
