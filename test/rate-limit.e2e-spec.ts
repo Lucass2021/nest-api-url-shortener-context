@@ -17,19 +17,33 @@ describe("Rate Limiting (e2e)", () => {
     await testApp.redis.flushdb();
   });
 
-  it("POST /links/shorten - returns 429 after 10 requests from same IP", async () => {
-    for (let i = 0; i < 10; i++) {
-      await testApp.server.inject({
-        method: "POST",
-        url: "/links/shorten",
-        payload: { url: "https://www.google.com" },
-      });
-    }
+  it("POST /links/shorten - returns 429 after exceeding authenticated rate limit", async () => {
+    await testApp.server.inject({
+      method: "POST",
+      url: "/auth/register",
+      payload: {
+        name: "Test User",
+        email: "test@test.com",
+        password: "password123",
+      },
+    });
+    const loginResponse = await testApp.server.inject({
+      method: "POST",
+      url: "/auth/login",
+      payload: { email: "test@test.com", password: "password123" },
+    });
+    const { accessToken } = loginResponse.json<{ accessToken: string }>();
+
+    const user = await testApp.prisma.user.findUnique({
+      where: { email: "test@test.com" },
+    });
+    await testApp.redis.set(`rl:user:${user!.id}`, "100", "EX", 3600);
 
     const rateLimitedResponse = await testApp.server.inject({
       method: "POST",
       url: "/links/shorten",
       payload: { url: "https://www.google.com" },
+      headers: { authorization: `Bearer ${accessToken}` },
     });
     expect(rateLimitedResponse.statusCode).toBe(429);
     expect(rateLimitedResponse.headers["retry-after"]).toBeDefined();

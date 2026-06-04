@@ -7,7 +7,7 @@ import {
   Injectable,
 } from "@nestjs/common";
 import type { FastifyRequest, FastifyReply } from "fastify";
-import Redis from "ioredis";
+import type { Redis } from "ioredis";
 import { REDIS_CLIENT } from "src/redis/redis.module";
 import type { AuthUser } from "src/auth/decorators/current-user.decorator";
 

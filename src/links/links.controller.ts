@@ -11,7 +11,6 @@ import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { LinksService } from "./links.service";
 import { CreateLinkDto } from "./dto/create-link.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { OptionalJwtAuthGuard } from "../auth/optional-jwt-auth.guard";
 import {
   CurrentUser,
   type AuthUser,
@@ -32,12 +31,9 @@ export class LinksController {
 
   @Post("shorten")
   @ApiBearerAuth()
-  @UseGuards(OptionalJwtAuthGuard, RateLimitGuard)
-  shortenUrl(
-    @Body() dto: CreateLinkDto,
-    @CurrentUser() user: AuthUser | undefined,
-  ) {
-    return this.linksService.shortenUrl(dto.url, user?.id, dto.expiresAt);
+  @UseGuards(JwtAuthGuard, RateLimitGuard)
+  shortenUrl(@Body() dto: CreateLinkDto, @CurrentUser() user: AuthUser) {
+    return this.linksService.shortenUrl(dto.url, user.id, dto.expiresAt);
   }
 
   @Delete(":code")

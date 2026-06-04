@@ -6,7 +6,7 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { AuthService } from "./auth.service";
 import { RefreshDto } from "./dto/refresh.dto";
 import { JwtAuthGuard } from "./jwt-auth.guard";
@@ -49,16 +49,31 @@ export class AuthController {
   }
 
   @Post("forgot-password")
+  @ApiResponse({
+    status: 201,
+    description: "Reset code sent if account exists",
+  })
+  @ApiResponse({
+    status: 429,
+    description: "Cooldown active — wait before requesting another code",
+  })
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto);
   }
 
   @Post("verify-reset-code")
+  @ApiResponse({ status: 201, description: "Code valid — returns resetToken" })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid or expired code, or too many failed attempts",
+  })
   verifyResetCode(@Body() dto: VerifyResetCodeDto) {
     return this.authService.verifyResetCode(dto);
   }
 
   @Post("reset-password")
+  @ApiResponse({ status: 201, description: "Password reset successfully" })
+  @ApiResponse({ status: 400, description: "Invalid or expired reset token" })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
   }

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Res } from "@nestjs/common";
+import { Controller, Get, HttpStatus, Param, Res } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { LinksService } from "./links.service";
 import type { FastifyReply } from "fastify";
@@ -12,7 +12,7 @@ export class RedirectController {
   async redirect(@Param("code") code: string, @Res() res: FastifyReply) {
     const link = await this.linksService.findByCode(code);
     void this.linksService.incrementClicks(code);
-    return res.redirect(link.originalUrl, 302);
+    return res.redirect(link.originalUrl, HttpStatus.FOUND);
   }
 
   @Get(":code/stats")

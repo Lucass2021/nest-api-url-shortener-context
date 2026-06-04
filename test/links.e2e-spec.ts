@@ -34,17 +34,12 @@ describe("Links (e2e)", () => {
     return loginResponse.json();
   }
 
-  async function shortenUrl(
-    url: string,
-    accessToken?: string,
-  ): Promise<string> {
+  async function shortenUrl(url: string, accessToken: string): Promise<string> {
     const shortenResponse = await testApp.server.inject({
       method: "POST",
       url: "/links/shorten",
       payload: { url },
-      headers: accessToken
-        ? { authorization: `Bearer ${accessToken}` }
-        : undefined,
+      headers: { authorization: `Bearer ${accessToken}` },
     });
     return shortenResponse
       .json<{ shortUrl: string }>()
@@ -52,11 +47,22 @@ describe("Links (e2e)", () => {
       .pop()!;
   }
 
-  it("POST /links/shorten - creates a short link", async () => {
+  it("POST /links/shorten - returns 401 without token", async () => {
     const shortenResponse = await testApp.server.inject({
       method: "POST",
       url: "/links/shorten",
       payload: { url: "https://www.google.com" },
+    });
+    expect(shortenResponse.statusCode).toBe(401);
+  });
+
+  it("POST /links/shorten - creates a short link", async () => {
+    const { accessToken } = await loginAs();
+    const shortenResponse = await testApp.server.inject({
+      method: "POST",
+      url: "/links/shorten",
+      payload: { url: "https://www.google.com" },
+      headers: { authorization: `Bearer ${accessToken}` },
     });
     expect(shortenResponse.statusCode).toBe(201);
     expect(shortenResponse.json<{ shortUrl: string }>().shortUrl).toMatch(
@@ -65,7 +71,8 @@ describe("Links (e2e)", () => {
   });
 
   it("GET /:code - redirects to original URL (302)", async () => {
-    const code = await shortenUrl("https://www.google.com");
+    const { accessToken } = await loginAs();
+    const code = await shortenUrl("https://www.google.com", accessToken);
 
     const redirectResponse = await testApp.server.inject({
       method: "GET",
@@ -76,18 +83,21 @@ describe("Links (e2e)", () => {
   });
 
   it("GET /:code - caches URL in Redis after first redirect", async () => {
-    const code = await shortenUrl("https://www.google.com");
+    const { accessToken } = await loginAs();
+    const code = await shortenUrl("https://www.google.com", accessToken);
 
     await testApp.server.inject({ method: "GET", url: `/${code}` });
     expect(await testApp.redis.get(code)).toBe("https://www.google.com");
   });
 
   it("GET /:code - expired link returns 410", async () => {
+    const { accessToken } = await loginAs();
     const pastDate = new Date(Date.now() - 1000).toISOString();
     const shortenResponse = await testApp.server.inject({
       method: "POST",
       url: "/links/shorten",
       payload: { url: "https://www.google.com", expiresAt: pastDate },
+      headers: { authorization: `Bearer ${accessToken}` },
     });
     const code = shortenResponse
       .json<{ shortUrl: string }>()
@@ -102,7 +112,8 @@ describe("Links (e2e)", () => {
   });
 
   it("GET /:code/stats - returns click count after redirect", async () => {
-    const code = await shortenUrl("https://www.google.com");
+    const { accessToken } = await loginAs();
+    const code = await shortenUrl("https://www.google.com", accessToken);
 
     await testApp.server.inject({ method: "GET", url: `/${code}` });
     await new Promise(resolve => setTimeout(resolve, 100));

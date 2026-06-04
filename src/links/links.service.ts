@@ -7,7 +7,8 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { REDIS_CLIENT } from "src/redis/redis.module";
-import Redis from "ioredis";
+import type { Redis } from "ioredis";
+import { ConfigService } from "@nestjs/config";
 
 const SHORT_CODE_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -18,10 +19,11 @@ const CACHE_TTL_SECONDS = 60 * 60;
 export class LinksService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
-  async shortenUrl(url: string, userId?: string, expiresAt?: string) {
+  async shortenUrl(url: string, userId: string, expiresAt?: string) {
     const code = await this.generateUniqueCode();
 
     const link = await this.prisma.link.create({
@@ -33,11 +35,7 @@ export class LinksService {
       },
     });
 
-    const baseUrl = process.env.BASE_URL;
-
-    if (!baseUrl) {
-      throw new Error("BASE_URL environment variable is not defined");
-    }
+    const baseUrl = this.config.getOrThrow<string>("BASE_URL");
 
     return { shortUrl: `${baseUrl}/${link.code}` };
   }
@@ -106,6 +104,8 @@ export class LinksService {
 
     await this.prisma.link.delete({ where: { code } });
     await this.redis.del(code);
+
+    return { message: "Link deleted successfully" };
   }
 
   private async generateUniqueCode(): Promise<string> {

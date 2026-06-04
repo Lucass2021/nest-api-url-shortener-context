@@ -9,9 +9,10 @@ Covers Redis caching, JWT authentication, rate limiting, and e2e testing with Ne
 
 - **Framework:** NestJS v11 + TypeScript
 - **HTTP:** Fastify
-- **Database:** PostgreSQL 16 + Prisma 6 ORM
+- **Database:** PostgreSQL 16 + Prisma 7 ORM
 - **Cache:** Redis 7 (ioredis)
 - **Auth:** JWT + refresh token (passport-jwt)
+- **Mail:** Nodemailer + Mailtrap (SMTP sandbox)
 - **Containers:** Docker + Docker Compose
 - **Tests:** Jest + Fastify inject (e2e)
 - **Docs:** Swagger at `/docs`
@@ -24,6 +25,7 @@ Covers Redis caching, JWT authentication, rate limiting, and e2e testing with Ne
 
 - Node.js 22+
 - Docker + Docker Compose
+- A [Mailtrap](https://mailtrap.io) account (free) for email sandbox
 
 ### Setup
 
@@ -34,14 +36,16 @@ bun install
 # 2. Copy environment variables
 cp .env.example .env
 
-# 3. Start Postgres and Redis
+# 3. Fill in secrets in .env (JWT_SECRET, JWT_REFRESH_SECRET, MAIL_* — see below)
+
+# 4. Start Postgres and Redis
 bun run docker:up
 
-# 4. Run migrations and generate Prisma client
+# 5. Run migrations and generate Prisma client
 bun run db:migrate
 bun run db:generate
 
-# 5. Start the server
+# 6. Start the server
 bun run dev
 ```
 
@@ -68,6 +72,20 @@ Swagger docs at `http://localhost:3000/docs`.
 | `JWT_EXPIRES_IN`         | Access token TTL                   | `15m`                   |
 | `JWT_REFRESH_SECRET`     | Refresh token signing secret       | —                       |
 | `JWT_REFRESH_EXPIRES_IN` | Refresh token TTL                  | `7d`                    |
+| `MAIL_HOST`              | SMTP host                          | `sandbox.smtp.mailtrap.io` |
+| `MAIL_PORT`              | SMTP port                          | `587`                   |
+| `MAIL_USER`              | SMTP username                      | —                       |
+| `MAIL_PASS`              | SMTP password                      | —                       |
+| `MAIL_FROM`              | Sender address                     | `noreply@urlshortener.dev` |
+
+### Mailtrap setup
+
+1. Create a free account at [mailtrap.io](https://mailtrap.io)
+2. Open **Email Testing → Inboxes → your inbox → SMTP Settings**
+3. Select **Nodemailer** in the integrations dropdown
+4. Copy `host`, `port`, `user`, and `pass` into your `.env`
+
+All emails sent in development land in the Mailtrap inbox — nothing reaches real addresses.
 
 ---
 
@@ -96,18 +114,21 @@ bun run lint             # ESLint + Prisma schema validation
 
 ### Auth
 
-| Method | Endpoint         | Auth     | Description                                          |
-| ------ | ---------------- | -------- | ---------------------------------------------------- |
-| `POST` | `/auth/register` | —        | Create account, returns tokens + user (auto-login)   |
-| `POST` | `/auth/login`    | —        | Login, returns access + refresh tokens               |
-| `POST` | `/auth/refresh`  | —        | Issue new access token via refresh token             |
-| `POST` | `/auth/logout`   | Required | Invalidate refresh token                             |
+| Method | Endpoint                    | Auth     | Description                                        |
+| ------ | --------------------------- | -------- | -------------------------------------------------- |
+| `POST` | `/auth/register`            | —        | Create account, returns tokens + user (auto-login) |
+| `POST` | `/auth/login`               | —        | Login, returns access + refresh tokens             |
+| `POST` | `/auth/refresh`             | —        | Issue new access token via refresh token           |
+| `POST` | `/auth/logout`              | Required | Invalidate refresh token                           |
+| `POST` | `/auth/forgot-password`     | —        | Send 6-digit reset code to email (60s cooldown)    |
+| `POST` | `/auth/verify-reset-code`   | —        | Validate code, returns one-time `resetToken`       |
+| `POST` | `/auth/reset-password`      | —        | Set new password using `resetToken`                |
 
 ### Links
 
 | Method   | Endpoint          | Auth     | Description                     |
 | -------- | ----------------- | -------- | ------------------------------- |
-| `POST`   | `/links/shorten`  | Optional | Shorten a URL                   |
+| `POST`   | `/links/shorten`  | Required | Shorten a URL                   |
 | `GET`    | `/links/me/links` | Required | List authenticated user's links |
 | `DELETE` | `/links/:code`    | Required | Delete own link                 |
 
@@ -119,18 +140,6 @@ bun run lint             # ESLint + Prisma schema validation
 | `GET`  | `/:code/stats` | —    | Link stats: total clicks, created at, last visit |
 
 ### Request examples
-
-**Shorten a URL**
-
-```http
-POST /links/shorten
-Content-Type: application/json
-
-{
-  "url": "https://www.example.com",
-  "expiresAt": "2026-12-31T23:59:59.000Z"
-}
-```
 
 **Register**
 
@@ -174,12 +183,58 @@ Content-Type: application/json
 }
 ```
 
-Response `200`:
+Response `201`:
 ```json
 {
   "accessToken": "<jwt>",
   "refreshToken": "<jwt>"
 }
+```
+
+**Forgot password flow**
+
+```http
+POST /auth/forgot-password
+Content-Type: application/json
+
+{ "email": "user@example.com" }
+```
+
+```http
+POST /auth/verify-reset-code
+Content-Type: application/json
+
+{ "email": "user@example.com", "code": "482910" }
+```
+
+Response `201`:
+```json
+{ "resetToken": "<hex-token>" }
+```
+
+```http
+POST /auth/reset-password
+Content-Type: application/json
+
+{ "resetToken": "<hex-token>", "newPassword": "newpassword123" }
+```
+
+**Shorten a URL**
+
+```http
+POST /links/shorten
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{
+  "url": "https://www.example.com",
+  "expiresAt": "2026-12-31T23:59:59.000Z"
+}
+```
+
+Response `201`:
+```json
+{ "shortUrl": "http://localhost:3000/abc123" }
 ```
 
 ---
@@ -188,6 +243,7 @@ Response `200`:
 
 - **Redis cache:** `GET /:code` checks Redis before hitting Postgres. Cache is invalidated on `DELETE`.
 - **Click counting:** incremented asynchronously (fire-and-forget) — never blocks the redirect response.
-- **Rate limiting:** tracked per IP in Redis — 10 req/hour for anonymous, 100 req/hour for authenticated. Returns `Retry-After` header on `429`.
+- **Rate limiting:** tracked per authenticated user in Redis — 100 req/hour. Returns `Retry-After` header on `429`.
+- **Password reset cooldown:** after a reset code is sent, the same email cannot request another for 60 seconds. Code is invalidated after 5 wrong verification attempts.
 - **Link expiration:** links with `expiresAt` in the past return `410 Gone`.
-- **Prisma client:** must be regenerated after `npm install` — run `npm run db:generate`.
+- **Prisma client:** must be regenerated after `bun install` — run `bun run db:generate`.

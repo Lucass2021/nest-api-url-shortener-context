@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   UnauthorizedException,
@@ -14,10 +16,16 @@ import { AuthCredentialsDto } from "./dto/auth-credentials.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { VerifyResetCodeDto } from "./dto/verify-reset-code.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
-import { Redis } from "ioredis";
+import type { Redis } from "ioredis";
 import { REDIS_CLIENT } from "src/redis/redis.module";
 import { randomBytes, randomInt } from "crypto";
 import { MailService } from "src/mail/mail.service";
+
+const BCRYPT_SALT_ROUNDS = 10;
+const RESET_CODE_TTL_SECONDS = 900;
+const FORGOT_PASSWORD_COOLDOWN_SECONDS = 60;
+const RESET_TOKEN_BYTES = 32;
+const REDIS_FLAG = "1";
 
 type JwtPayload = {
   sub: string;
@@ -43,7 +51,10 @@ export class AuthService {
       throw new BadRequestException("User already exists");
     }
 
-    const passwordHash: string = await bcrypt.hash(user.password, 10);
+    const passwordHash: string = await bcrypt.hash(
+      user.password,
+      BCRYPT_SALT_ROUNDS,
+    );
     const createdUser = await this.prisma.user.create({
       data: {
         name: user.name,
@@ -64,7 +75,10 @@ export class AuthService {
     await this.prisma.user.update({
       where: { id: createdUser.id },
       data: {
-        refreshTokenHash: await bcrypt.hash(tokens.refreshToken, 10),
+        refreshTokenHash: await bcrypt.hash(
+          tokens.refreshToken,
+          BCRYPT_SALT_ROUNDS,
+        ),
       },
     });
 
@@ -97,7 +111,10 @@ export class AuthService {
     await this.prisma.user.update({
       where: { id: existingUser.id },
       data: {
-        refreshTokenHash: await bcrypt.hash(tokens.refreshToken, 10),
+        refreshTokenHash: await bcrypt.hash(
+          tokens.refreshToken,
+          BCRYPT_SALT_ROUNDS,
+        ),
       },
     });
 
@@ -138,7 +155,10 @@ export class AuthService {
       await this.prisma.user.update({
         where: { id: existingUser.id },
         data: {
-          refreshTokenHash: await bcrypt.hash(tokens.refreshToken, 10),
+          refreshTokenHash: await bcrypt.hash(
+            tokens.refreshToken,
+            BCRYPT_SALT_ROUNDS,
+          ),
         },
       });
 
@@ -167,22 +187,40 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
+    const cooldownKey = `password_reset:cooldown:${dto.email}`;
+    const onCooldown = await this.redis.get(cooldownKey);
+
+    if (onCooldown) {
+      throw new HttpException(
+        "Please wait before requesting another reset code",
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
 
     if (existingUser) {
       const resetCode = randomInt(100000, 999999).toString();
-      const resetCodeHash = await bcrypt.hash(resetCode, 10);
+      const resetCodeHash: string = await bcrypt.hash(
+        resetCode,
+        BCRYPT_SALT_ROUNDS,
+      );
 
-      await this.redis.set(
+      await this.setRedisKeyWithExpiry(
         `password_reset:${dto.email}`,
         resetCodeHash,
-        "EX",
-        900, // TTL: 15 min in seconds
+        RESET_CODE_TTL_SECONDS,
       );
 
       await this.mail.sendResetCode(dto.email, resetCode);
+
+      await this.setRedisKeyWithExpiry(
+        cooldownKey,
+        REDIS_FLAG,
+        FORGOT_PASSWORD_COOLDOWN_SECONDS,
+      );
     }
 
     return {
@@ -191,60 +229,80 @@ export class AuthService {
     };
   }
 
-  async verifyResetCode(user: VerifyResetCodeDto) {
-    const resetCodeHash = await this.redis.get(`password_reset:${user.email}`);
+  async verifyResetCode(dto: VerifyResetCodeDto) {
+    const resetCodeKey = `password_reset:${dto.email}`;
+    const attemptsKey = `password_reset:attempts:${dto.email}`;
+
+    const resetCodeHash = await this.redis.get(resetCodeKey);
 
     if (!resetCodeHash) {
       throw new BadRequestException("Invalid or expired reset code");
     }
 
-    const isCodeValid = await bcrypt.compare(user.code, resetCodeHash);
+    const isCodeValid: boolean = await bcrypt.compare(dto.code, resetCodeHash);
 
     if (!isCodeValid) {
+      const attempts = await this.redis.incr(attemptsKey);
+      if (attempts === 1) {
+        await this.redis.expire(attemptsKey, RESET_CODE_TTL_SECONDS);
+      }
+      if (attempts >= 5) {
+        await this.redis.del(resetCodeKey);
+      }
       throw new BadRequestException("Invalid or expired reset code");
     }
 
-    const resetToken = randomBytes(32).toString("hex");
+    await this.redis.del(resetCodeKey, attemptsKey);
 
-    await this.redis.del(`password_reset:${user.email}`);
+    const resetToken = randomBytes(RESET_TOKEN_BYTES).toString("hex");
 
-    await this.redis.set(
+    await this.setRedisKeyWithExpiry(
       `password_reset_token:${resetToken}`,
-      user.email,
-      "EX",
-      900, // TTL: 15 min in seconds
+      dto.email,
+      RESET_CODE_TTL_SECONDS,
     );
 
     return { resetToken };
   }
 
-  async resetPassword(user: ResetPasswordDto) {
-    const passwordResetToken = await this.redis.get(
-      `password_reset_token:${user.resetToken}`,
+  async resetPassword(dto: ResetPasswordDto) {
+    const resetTokenEmail = await this.redis.get(
+      `password_reset_token:${dto.resetToken}`,
     );
 
-    if (!passwordResetToken) {
+    if (!resetTokenEmail) {
       throw new BadRequestException("Invalid or expired reset token");
     }
 
     const existingUser = await this.prisma.user.findUnique({
-      where: { email: passwordResetToken },
+      where: { email: resetTokenEmail },
     });
 
     if (!existingUser) {
       throw new BadRequestException("Invalid reset token");
     }
 
-    const newPasswordHash = await bcrypt.hash(user.newPassword, 10);
+    const newPasswordHash: string = await bcrypt.hash(
+      dto.newPassword,
+      BCRYPT_SALT_ROUNDS,
+    );
 
     await this.prisma.user.update({
       where: { id: existingUser.id },
       data: { passwordHash: newPasswordHash, refreshTokenHash: null },
     });
 
-    await this.redis.del(`password_reset_token:${user.resetToken}`);
+    await this.redis.del(`password_reset_token:${dto.resetToken}`);
 
     return { message: "Password has been reset successfully" };
+  }
+
+  private setRedisKeyWithExpiry(
+    key: string,
+    value: string,
+    ttlSeconds: number,
+  ) {
+    return this.redis.set(key, value, "EX", ttlSeconds);
   }
 
   private async generateTokens(userId: string, email: string) {
