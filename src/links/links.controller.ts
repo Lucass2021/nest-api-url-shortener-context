@@ -33,7 +33,7 @@ export class LinksController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RateLimitGuard)
   shortenUrl(@Body() dto: CreateLinkDto, @CurrentUser() user: AuthUser) {
-    return this.linksService.shortenUrl(dto.url, user.id, dto.expiresAt);
+    return this.linksService.shortenUrl(dto.url, user.id, dto.expiration);
   }
 
   @Delete(":code")

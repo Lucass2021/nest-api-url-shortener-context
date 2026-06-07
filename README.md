@@ -228,9 +228,11 @@ Content-Type: application/json
 
 {
   "url": "https://www.example.com",
-  "expiresAt": "2026-12-31T23:59:59.000Z"
+  "expiration": "7d"
 }
 ```
+
+`expiration` accepts `"7d"`, `"30d"`, `"never"`, or can be omitted — all result in no expiration except the first two.
 
 Response `201`:
 ```json
@@ -245,5 +247,5 @@ Response `201`:
 - **Click counting:** incremented asynchronously (fire-and-forget) — never blocks the redirect response.
 - **Rate limiting:** tracked per authenticated user in Redis — 100 req/hour. Returns `Retry-After` header on `429`.
 - **Password reset cooldown:** after a reset code is sent, the same email cannot request another for 60 seconds. Code is invalidated after 5 wrong verification attempts.
-- **Link expiration:** links with `expiresAt` in the past return `410 Gone`.
+- **Link expiration:** `POST /links/shorten` accepts `expiration: "7d" | "30d" | "never"` (or omit for no expiration). The backend resolves the enum to an absolute date. Links past their `expiresAt` return `410 Gone`.
 - **Prisma client:** must be regenerated after `bun install` — run `bun run db:generate`.

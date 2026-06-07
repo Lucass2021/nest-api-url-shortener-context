@@ -92,17 +92,12 @@ describe("Links (e2e)", () => {
 
   it("GET /:code - expired link returns 410", async () => {
     const { accessToken } = await loginAs();
-    const pastDate = new Date(Date.now() - 1000).toISOString();
-    const shortenResponse = await testApp.server.inject({
-      method: "POST",
-      url: "/links/shorten",
-      payload: { url: "https://www.google.com", expiresAt: pastDate },
-      headers: { authorization: `Bearer ${accessToken}` },
+    const code = await shortenUrl("https://www.google.com", accessToken);
+
+    await testApp.prisma.link.update({
+      where: { code },
+      data: { expiresAt: new Date(Date.now() - 1000) },
     });
-    const code = shortenResponse
-      .json<{ shortUrl: string }>()
-      .shortUrl.split("/")
-      .pop()!;
 
     const expiredRedirectResponse = await testApp.server.inject({
       method: "GET",

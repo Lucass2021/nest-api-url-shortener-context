@@ -9,11 +9,15 @@ import { PrismaService } from "../prisma/prisma.service";
 import { REDIS_CLIENT } from "src/redis/redis.module";
 import type { Redis } from "ioredis";
 import { ConfigService } from "@nestjs/config";
+import { ExpirationOption } from "./dto/create-link.dto";
 
 const SHORT_CODE_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const CODE_LENGTH = 6;
 const CACHE_TTL_SECONDS = 60 * 60;
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class LinksService {
@@ -23,7 +27,7 @@ export class LinksService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
-  async shortenUrl(url: string, userId: string, expiresAt?: string) {
+  async shortenUrl(url: string, userId: string, expiration?: ExpirationOption) {
     const code = await this.generateUniqueCode();
 
     const link = await this.prisma.link.create({
@@ -31,7 +35,7 @@ export class LinksService {
         code,
         originalUrl: url,
         userId,
-        expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+        expiresAt: this.resolveExpiration(expiration),
       },
     });
 
@@ -106,6 +110,15 @@ export class LinksService {
     await this.redis.del(code);
 
     return { message: "Link deleted successfully" };
+  }
+
+  private resolveExpiration(expiration?: ExpirationOption): Date | undefined {
+    if (!expiration || expiration === ExpirationOption.NEVER) return undefined;
+    const offsetMs =
+      expiration === ExpirationOption.SEVEN_DAYS
+        ? SEVEN_DAYS_MS
+        : THIRTY_DAYS_MS;
+    return new Date(Date.now() + offsetMs);
   }
 
   private async generateUniqueCode(): Promise<string> {

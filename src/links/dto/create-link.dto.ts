@@ -1,13 +1,22 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsDateString, IsOptional, IsUrl } from "class-validator";
+import { IsEnum, IsOptional, IsUrl } from "class-validator";
+
+export enum ExpirationOption {
+  SEVEN_DAYS = "7d",
+  THIRTY_DAYS = "30d",
+  NEVER = "never",
+}
 
 export class CreateLinkDto {
   @ApiProperty({ example: "https://www.youtube.com" })
   @IsUrl({}, { message: "Invalid URL" })
   url!: string;
 
-  @ApiPropertyOptional({ example: "2026-12-31T23:59:59.000Z" })
+  @ApiPropertyOptional({
+    enum: ExpirationOption,
+    example: ExpirationOption.SEVEN_DAYS,
+  })
   @IsOptional()
-  @IsDateString()
-  expiresAt?: string;
+  @IsEnum(ExpirationOption)
+  expiration?: ExpirationOption;
 }
