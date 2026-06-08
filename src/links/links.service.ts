@@ -4,13 +4,16 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { REDIS_CLIENT } from "src/redis/redis.module";
 import type { Redis } from "ioredis";
 import { ConfigService } from "@nestjs/config";
+import * as bcrypt from "bcrypt";
 import { ExpirationOption } from "./dto/create-link.dto";
 
+const BCRYPT_SALT_ROUNDS = 10;
 const SHORT_CODE_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const CODE_LENGTH = 6;
@@ -27,8 +30,19 @@ export class LinksService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
-  async shortenUrl(url: string, userId: string, expiration?: ExpirationOption) {
+  async shortenUrl(
+    url: string,
+    userId: string,
+    expiration?: ExpirationOption,
+    passcode?: string,
+  ) {
     const code = await this.generateUniqueCode();
+
+    let passcodeHash: string | null = null;
+    if (passcode) {
+      const hash: string = await bcrypt.hash(passcode, BCRYPT_SALT_ROUNDS);
+      passcodeHash = hash;
+    }
 
     const link = await this.prisma.link.create({
       data: {
@@ -36,6 +50,7 @@ export class LinksService {
         originalUrl: url,
         userId,
         expiresAt: this.resolveExpiration(expiration),
+        passcodeHash,
       },
     });
 
@@ -48,7 +63,8 @@ export class LinksService {
     const cachedOriginalUrl = await this.redis.get(code);
 
     if (cachedOriginalUrl) {
-      return { originalUrl: cachedOriginalUrl };
+      const passcodeHash: string | null = null;
+      return { originalUrl: cachedOriginalUrl, passcodeHash };
     }
 
     const link = await this.prisma.link.findUnique({ where: { code } });
@@ -58,9 +74,28 @@ export class LinksService {
       throw new GoneException("Link has expired");
     }
 
-    await this.redis.set(code, link.originalUrl, "EX", CACHE_TTL_SECONDS);
+    if (!link.passcodeHash) {
+      await this.redis.set(code, link.originalUrl, "EX", CACHE_TTL_SECONDS);
+    }
 
-    return link;
+    return { originalUrl: link.originalUrl, passcodeHash: link.passcodeHash };
+  }
+
+  async verifyPasscode(code: string, passcode: string) {
+    const link = await this.prisma.link.findUnique({ where: { code } });
+
+    if (!link) throw new NotFoundException("Link not found");
+    if (link.expiresAt && link.expiresAt < new Date()) {
+      throw new GoneException("Link has expired");
+    }
+    if (!link.passcodeHash) {
+      return { originalUrl: link.originalUrl };
+    }
+
+    const isValid: boolean = await bcrypt.compare(passcode, link.passcodeHash);
+    if (!isValid) throw new UnauthorizedException("Wrong passcode");
+
+    return { originalUrl: link.originalUrl };
   }
 
   async incrementClicks(code: string) {
@@ -86,7 +121,7 @@ export class LinksService {
   }
 
   async findByUser(userId: string) {
-    return this.prisma.link.findMany({
+    const links = await this.prisma.link.findMany({
       where: { userId },
       select: {
         code: true,
@@ -94,9 +129,15 @@ export class LinksService {
         clicks: true,
         createdAt: true,
         expiresAt: true,
+        passcodeHash: true,
       },
       orderBy: { createdAt: "desc" },
     });
+
+    return links.map(({ passcodeHash, ...link }) => ({
+      ...link,
+      isProtected: !!passcodeHash,
+    }));
   }
 
   async deleteByCode(code: string, userId: string) {

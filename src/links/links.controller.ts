@@ -16,6 +16,7 @@ import {
   type AuthUser,
 } from "../auth/decorators/current-user.decorator";
 import { RateLimitGuard } from "src/throttler/rate-limit.guard";
+import { VerifyPasscodeDto } from "./dto/verify-passcode.dto";
 
 @ApiTags("Links")
 @Controller("links")
@@ -33,7 +34,17 @@ export class LinksController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RateLimitGuard)
   shortenUrl(@Body() dto: CreateLinkDto, @CurrentUser() user: AuthUser) {
-    return this.linksService.shortenUrl(dto.url, user.id, dto.expiration);
+    return this.linksService.shortenUrl(
+      dto.url,
+      user.id,
+      dto.expiration,
+      dto.passcode,
+    );
+  }
+
+  @Post(":code/verify-passcode")
+  verifyPasscode(@Param("code") code: string, @Body() dto: VerifyPasscodeDto) {
+    return this.linksService.verifyPasscode(code, dto.passcode);
   }
 
   @Delete(":code")

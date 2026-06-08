@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsEnum, IsOptional, IsUrl } from "class-validator";
+import { IsEnum, IsOptional, IsUrl, Matches } from "class-validator";
 
 export enum ExpirationOption {
   SEVEN_DAYS = "7d",
@@ -19,4 +19,9 @@ export class CreateLinkDto {
   @IsOptional()
   @IsEnum(ExpirationOption)
   expiration?: ExpirationOption;
+
+  @ApiPropertyOptional({ example: "1234" })
+  @IsOptional()
+  @Matches(/^\d{4}$/, { message: "passcode must be 4 digits" })
+  passcode?: string;
 }
