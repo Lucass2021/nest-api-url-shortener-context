@@ -95,11 +95,13 @@ export class LinksService {
     const isValid: boolean = await bcrypt.compare(passcode, link.passcodeHash);
     if (!isValid) throw new UnauthorizedException("Wrong passcode");
 
+    void this.incrementClicks(code);
+
     return { originalUrl: link.originalUrl };
   }
 
   async incrementClicks(code: string) {
-    await this.prisma.link.update({
+    await this.prisma.link.updateMany({
       where: { code },
       data: {
         clicks: { increment: 1 },

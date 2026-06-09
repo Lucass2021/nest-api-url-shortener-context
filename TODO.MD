@@ -1,7 +1,3 @@
-# Add Qr Code to share link in /shorten?
-
-# Add password to /shorten (private links)?
-
 ### Extra (If project grows in complexity)
 
 ### Testing

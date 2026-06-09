@@ -1,14 +1,8 @@
-import {
-  Controller,
-  Get,
-  HttpException,
-  HttpStatus,
-  Param,
-  Res,
-} from "@nestjs/common";
+import { Controller, Get, HttpStatus, Param, Res } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { LinksService } from "./links.service";
 import type { FastifyReply } from "fastify";
+import { buildPasscodePage } from "./passcode-page";
 
 @ApiTags("Redirect")
 @Controller("")
@@ -20,7 +14,10 @@ export class RedirectController {
     const link = await this.linksService.findByCode(code);
 
     if (link.passcodeHash) {
-      throw new HttpException("Passcode required", HttpStatus.LOCKED);
+      return res
+        .header("Content-Type", "text/html; charset=utf-8")
+        .code(HttpStatus.OK)
+        .send(buildPasscodePage(code));
     }
 
     void this.linksService.incrementClicks(code);

@@ -125,6 +125,28 @@ describe("Links (e2e)", () => {
     expect(statsResponse.json<{ clicks: number }>().clicks).toBe(1);
   });
 
+  it("POST /:code/verify-passcode - increments click count on success", async () => {
+    const { accessToken } = await loginAs();
+    const code = await shortenUrl(
+      "https://www.google.com",
+      accessToken,
+      "1234",
+    );
+
+    await testApp.server.inject({
+      method: "POST",
+      url: `/links/${code}/verify-passcode`,
+      payload: { passcode: "1234" },
+    });
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    const statsResponse = await testApp.server.inject({
+      method: "GET",
+      url: `/${code}/stats`,
+    });
+    expect(statsResponse.json<{ clicks: number }>().clicks).toBe(1);
+  });
+
   it("GET /links/me/links - returns 401 without token", async () => {
     const unauthResponse = await testApp.server.inject({
       method: "GET",
@@ -171,7 +193,7 @@ describe("Links (e2e)", () => {
     expect(links[0].isProtected).toBe(true);
   });
 
-  it("GET /:code - returns 423 when link is protected", async () => {
+  it("GET /:code - serves passcode HTML page when link is protected", async () => {
     const { accessToken } = await loginAs();
     const code = await shortenUrl(
       "https://www.google.com",
@@ -183,7 +205,9 @@ describe("Links (e2e)", () => {
       method: "GET",
       url: `/${code}`,
     });
-    expect(redirectResponse.statusCode).toBe(423);
+    expect(redirectResponse.statusCode).toBe(200);
+    expect(redirectResponse.headers["content-type"]).toContain("text/html");
+    expect(redirectResponse.body).toContain(`/links/${code}/verify-passcode`);
   });
 
   it("GET /:code - does not cache protected links", async () => {
