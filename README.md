@@ -123,6 +123,7 @@ bun run lint             # ESLint + Prisma schema validation
 | `POST` | `/auth/forgot-password`     | —        | Send 6-digit reset code to email (60s cooldown)    |
 | `POST` | `/auth/verify-reset-code`   | —        | Validate code, returns one-time `resetToken`       |
 | `POST` | `/auth/reset-password`      | —        | Set new password using `resetToken`                |
+| `GET`  | `/auth/me`                  | Required | Return authenticated user's name and email         |
 
 ### Links
 
@@ -217,6 +218,21 @@ POST /auth/reset-password
 Content-Type: application/json
 
 { "resetToken": "<hex-token>", "newPassword": "newpassword123" }
+```
+
+**Get current user**
+
+```http
+GET /auth/me
+Authorization: Bearer <accessToken>
+```
+
+Response `200`:
+```json
+{
+  "name": "John Doe",
+  "email": "user@example.com"
+}
 ```
 
 **Shorten a URL**

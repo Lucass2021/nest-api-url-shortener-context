@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -76,5 +77,17 @@ export class AuthController {
   @ApiResponse({ status: 400, description: "Invalid or expired reset token" })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  @Get("me")
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiResponse({
+    status: 200,
+    description: "Returns the authenticated user's name and email",
+  })
+  @ApiResponse({ status: 401, description: "Missing or invalid token" })
+  me(@CurrentUser() user: AuthUser) {
+    return { name: user.name, email: user.email };
   }
 }

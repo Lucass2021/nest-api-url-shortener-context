@@ -252,6 +252,42 @@ describe("Auth (e2e)", () => {
     expect(verifyWithCorrectCodeResponse.statusCode).toBe(400);
   });
 
+  it("GET /auth/me - returns name and email for authenticated user", async () => {
+    await testApp.server.inject({
+      method: "POST",
+      url: "/auth/register",
+      payload: {
+        name: "Test User",
+        email: "user@test.com",
+        password: "password123",
+      },
+    });
+    const loginResponse = await testApp.server.inject({
+      method: "POST",
+      url: "/auth/login",
+      payload: { email: "user@test.com", password: "password123" },
+    });
+    const { accessToken } = loginResponse.json<{ accessToken: string }>();
+
+    const meResponse = await testApp.server.inject({
+      method: "GET",
+      url: "/auth/me",
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(meResponse.statusCode).toBe(200);
+    const me = meResponse.json<{ name: string; email: string }>();
+    expect(me.name).toBe("Test User");
+    expect(me.email).toBe("user@test.com");
+  });
+
+  it("GET /auth/me - returns 401 without token", async () => {
+    const meResponse = await testApp.server.inject({
+      method: "GET",
+      url: "/auth/me",
+    });
+    expect(meResponse.statusCode).toBe(401);
+  });
+
   it("POST /auth/reset-password - returns 400 for invalid token", async () => {
     const resetPasswordResponse = await testApp.server.inject({
       method: "POST",
